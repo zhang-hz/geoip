@@ -41,4 +41,7 @@ cat ./tmp/azure.json | jq --raw-output '.values[] | select(.properties.region | 
 cat ./tmp/azure.json | jq --raw-output '.values[] | select(.properties.region | startswith("korea")) | .properties.addressPrefixes[] | select(. != null)' >> data/datacenterkr
 cat ./tmp/azure.json | jq --raw-output '.values[] | select(.properties.region | startswith("taiwan")) | .properties.addressPrefixes[] | select(. != null)' >> data/datacentertw
 cat ./tmp/azure.json | jq --raw-output '.values[] | select(.properties.region | contains("australia")) | .properties.addressPrefixes[] | select(. != null)' >> data/datacenterau
+cat ./tmp/azure.json | jq --raw-output '.values[] | select(.name | contains("Front")) | .properties.addressPrefixes[] | select(. != null)' >> data/anycastazure
+
+curl -sSL https://raw.githubusercontent.com/SecOps-Institute/Akamai-ASN-and-IPs-List/master/akamai_ip_cidr_blocks.lst -o ./data/akamai
 
