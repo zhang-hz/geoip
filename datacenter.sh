@@ -25,7 +25,7 @@ cat ./tmp/aws.json | jq --raw-output '.prefixes[],.ipv6_prefixes[] | select(.reg
 cat ./tmp/aws.json | jq --raw-output '.prefixes[],.ipv6_prefixes[] | select(.region | startswith("ap-northeast-1")) | select( .network_border_group | startswith("ap-northeast-1-tpe"))| .ip_prefix,.ipv6_prefix | select(. != null)' >> data/datacentertw
 cat ./tmp/aws.json | jq --raw-output '.prefixes[],.ipv6_prefixes[] | select(.region | startswith("GLOBAL")) | .ip_prefix,.ipv6_prefix | select(. != null)' >> data/anycastamazon
 
-curl -sSL https://download.microsoft.com/download/7/1/D/71D86715-5596-4529-9B13-DA13A5DE5B63/ServiceTags_Public_20230501.json -o ./tmp/azure.json
+curl -sSL https://raw.githubusercontent.com/jensihnow/AzurePublicIPAddressRanges/main/ServiceTags_Public.json -o ./tmp/azure.json
 cat ./tmp/azure.json | jq --raw-output '.values[] | select(.properties.region | contains("us"),contains("canada")) | .properties.addressPrefixes[] | select(. != null)' >> data/datacenterna
 cat ./tmp/azure.json | jq --raw-output '.values[] | select(.properties.region | contains("brazil")) | .properties.addressPrefixes[] | select(. != null)' >> data/datacentersa
 cat ./tmp/azure.json | jq --raw-output '.values[] | select(.properties.region | contains("europe")) | .properties.addressPrefixes[] | select(. != null)' >> data/datacentereu
