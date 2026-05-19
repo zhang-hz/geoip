@@ -5,40 +5,28 @@ import (
 	"errors"
 	"os"
 	"strings"
-
-	"github.com/tailscale/hujson"
 )
 
-type Instance interface {
-	InitConfig(configFile string) error
-	InitConfigFromBytes(content []byte) error
-	AddInput(InputConverter)
-	AddOutput(OutputConverter)
-	ResetInput()
-	ResetOutput()
-	RunInput(Container) error
-	RunOutput(Container) error
-	Run() error
-}
-
-type instance struct {
+type Instance struct {
+	config *config
 	input  []InputConverter
 	output []OutputConverter
 }
 
-func NewInstance() (Instance, error) {
-	return &instance{
+func NewInstance() (*Instance, error) {
+	return &Instance{
+		config: new(config),
 		input:  make([]InputConverter, 0),
 		output: make([]OutputConverter, 0),
 	}, nil
 }
 
-func (i *instance) InitConfig(configFile string) error {
+func (i *Instance) Init(configFile string) error {
 	var content []byte
 	var err error
 	configFile = strings.TrimSpace(configFile)
-	if strings.HasPrefix(strings.ToLower(configFile), "http://") || strings.HasPrefix(strings.ToLower(configFile), "https://") {
-		content, err = GetRemoteURLContent(configFile)
+	if strings.HasPrefix(configFile, "http://") || strings.HasPrefix(configFile, "https://") {
+		content, err = getRemoteURLContent(configFile)
 	} else {
 		content, err = os.ReadFile(configFile)
 	}
@@ -46,48 +34,28 @@ func (i *instance) InitConfig(configFile string) error {
 		return err
 	}
 
-	return i.InitConfigFromBytes(content)
-}
-
-func (i *instance) InitConfigFromBytes(content []byte) error {
-	config := new(config)
-
-	// Support JSON with comments and trailing commas
-	content, _ = hujson.Standardize(content)
-
-	if err := json.Unmarshal(content, &config); err != nil {
+	if err := json.Unmarshal(content, &i.config); err != nil {
 		return err
 	}
 
-	for _, input := range config.Input {
+	for _, input := range i.config.Input {
 		i.input = append(i.input, input.converter)
 	}
 
-	for _, output := range config.Output {
+	for _, output := range i.config.Output {
 		i.output = append(i.output, output.converter)
 	}
 
 	return nil
 }
 
-func (i *instance) AddInput(ic InputConverter) {
-	i.input = append(i.input, ic)
-}
+func (i *Instance) Run() error {
+	if len(i.input) == 0 || len(i.output) == 0 {
+		return errors.New("input type and output type must be specified")
+	}
 
-func (i *instance) AddOutput(oc OutputConverter) {
-	i.output = append(i.output, oc)
-}
-
-func (i *instance) ResetInput() {
-	i.input = make([]InputConverter, 0)
-}
-
-func (i *instance) ResetOutput() {
-	i.output = make([]OutputConverter, 0)
-}
-
-func (i *instance) RunInput(container Container) error {
 	var err error
+	container := NewContainer()
 	for _, ic := range i.input {
 		container, err = ic.Input(container)
 		if err != nil {
@@ -95,32 +63,10 @@ func (i *instance) RunInput(container Container) error {
 		}
 	}
 
-	return nil
-}
-
-func (i *instance) RunOutput(container Container) error {
 	for _, oc := range i.output {
 		if err := oc.Output(container); err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (i *instance) Run() error {
-	if len(i.input) == 0 || len(i.output) == 0 {
-		return errors.New("input type and output type must be specified")
-	}
-
-	container := NewContainer()
-
-	if err := i.RunInput(container); err != nil {
-		return err
-	}
-
-	if err := i.RunOutput(container); err != nil {
-		return err
 	}
 
 	return nil
