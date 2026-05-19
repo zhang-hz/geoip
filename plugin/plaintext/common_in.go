@@ -2,43 +2,33 @@ package plaintext
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"strings"
 
 	"github.com/Loyalsoldier/geoip/lib"
-	"github.com/tidwall/gjson"
 	"gopkg.in/yaml.v2"
 )
 
-type TextIn struct {
+type textIn struct {
 	Type        string
 	Action      lib.Action
 	Description string
 	Name        string
 	URI         string
-	IPOrCIDR    []string
 	InputDir    string
-	Want        map[string]bool
 	OnlyIPType  lib.IPType
-
-	JSONPath             []string
-	RemovePrefixesInLine []string
-	RemoveSuffixesInLine []string
 }
 
-func (t *TextIn) scanFile(reader io.Reader, entry *lib.Entry) error {
+func (t *textIn) scanFile(reader io.Reader, entry *lib.Entry) error {
 	var err error
 	switch t.Type {
-	case TypeTextIn:
+	case typeTextIn:
 		err = t.scanFileForTextIn(reader, entry)
-	case TypeJSONIn:
-		err = t.scanFileForJSONIn(reader, entry)
-	case TypeClashRuleSetClassicalIn:
+	case typeClashRuleSetClassicalIn:
 		err = t.scanFileForClashClassicalRuleSetIn(reader, entry)
-	case TypeClashRuleSetIPCIDRIn:
+	case typeClashRuleSetIPCIDRIn:
 		err = t.scanFileForClashIPCIDRRuleSetIn(reader, entry)
-	case TypeSurgeRuleSetIn:
+	case typeSurgeRuleSetIn:
 		err = t.scanFileForSurgeRuleSetIn(reader, entry)
 	default:
 		return lib.ErrNotSupportedFormat
@@ -47,11 +37,13 @@ func (t *TextIn) scanFile(reader io.Reader, entry *lib.Entry) error {
 	return err
 }
 
-func (t *TextIn) scanFileForTextIn(reader io.Reader, entry *lib.Entry) error {
+func (t *textIn) scanFileForTextIn(reader io.Reader, entry *lib.Entry) error {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		line := scanner.Text()
-
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
 		line, _, _ = strings.Cut(line, "#")
 		line, _, _ = strings.Cut(line, "//")
 		line, _, _ = strings.Cut(line, "/*")
@@ -59,19 +51,6 @@ func (t *TextIn) scanFileForTextIn(reader io.Reader, entry *lib.Entry) error {
 		if line == "" {
 			continue
 		}
-
-		line = strings.ToLower(line)
-		for _, prefix := range t.RemovePrefixesInLine {
-			line = strings.TrimSpace(strings.TrimPrefix(line, strings.ToLower(strings.TrimSpace(prefix))))
-		}
-		for _, suffix := range t.RemoveSuffixesInLine {
-			line = strings.TrimSpace(strings.TrimSuffix(line, strings.ToLower(strings.TrimSpace(suffix))))
-		}
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
 		if err := entry.AddPrefix(line); err != nil {
 			return err
 		}
@@ -83,7 +62,7 @@ func (t *TextIn) scanFileForTextIn(reader io.Reader, entry *lib.Entry) error {
 	return nil
 }
 
-func (t *TextIn) readClashRuleSetYAMLFile(reader io.Reader) ([]string, error) {
+func (t *textIn) readClashRuleSetYAMLFile(reader io.Reader) ([]string, error) {
 	var payload struct {
 		Payload []string `yaml:"payload"`
 	}
@@ -100,7 +79,7 @@ func (t *TextIn) readClashRuleSetYAMLFile(reader io.Reader) ([]string, error) {
 	return payload.Payload, nil
 }
 
-func (t *TextIn) scanFileForClashIPCIDRRuleSetIn(reader io.Reader, entry *lib.Entry) error {
+func (t *textIn) scanFileForClashIPCIDRRuleSetIn(reader io.Reader, entry *lib.Entry) error {
 	payload, err := t.readClashRuleSetYAMLFile(reader)
 	if err != nil {
 		return err
@@ -119,7 +98,7 @@ func (t *TextIn) scanFileForClashIPCIDRRuleSetIn(reader io.Reader, entry *lib.En
 	return nil
 }
 
-func (t *TextIn) scanFileForClashClassicalRuleSetIn(reader io.Reader, entry *lib.Entry) error {
+func (t *textIn) scanFileForClashClassicalRuleSetIn(reader io.Reader, entry *lib.Entry) error {
 	payload, err := t.readClashRuleSetYAMLFile(reader)
 	if err != nil {
 		return err
@@ -131,17 +110,9 @@ func (t *TextIn) scanFileForClashClassicalRuleSetIn(reader io.Reader, entry *lib
 			continue
 		}
 
-		// Examples:
-		// IP-CIDR,162.208.16.0/24
-		// IP-CIDR6,2a0b:e40:1::/48
-		// IP-CIDR,162.208.16.0/24,no-resolve
-		// IP-CIDR6,2a0b:e40:1::/48,no-resolve
 		if strings.HasPrefix(line, "ip-cidr,") || strings.HasPrefix(line, "ip-cidr6,") {
-			parts := strings.Split(line, ",")
-			if len(parts) < 2 {
-				continue
-			}
-			line = strings.TrimSpace(parts[1])
+			_, line, _ = strings.Cut(line, ",")
+			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
 			}
@@ -154,30 +125,20 @@ func (t *TextIn) scanFileForClashClassicalRuleSetIn(reader io.Reader, entry *lib
 	return nil
 }
 
-func (t *TextIn) scanFileForSurgeRuleSetIn(reader io.Reader, entry *lib.Entry) error {
+func (t *textIn) scanFileForSurgeRuleSetIn(reader io.Reader, entry *lib.Entry) error {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		line := scanner.Text()
-
-		line, _, _ = strings.Cut(line, "#")
-		line, _, _ = strings.Cut(line, "//")
-		line, _, _ = strings.Cut(line, "/*")
-		line = strings.ToLower(strings.TrimSpace(line))
+		line := strings.ToLower(strings.TrimSpace(scanner.Text()))
 		if line == "" {
 			continue
 		}
 
-		// Examples:
-		// IP-CIDR,162.208.16.0/24
-		// IP-CIDR6,2a0b:e40:1::/48
-		// IP-CIDR,162.208.16.0/24,no-resolve
-		// IP-CIDR6,2a0b:e40:1::/48,no-resolve
 		if strings.HasPrefix(line, "ip-cidr,") || strings.HasPrefix(line, "ip-cidr6,") {
-			parts := strings.Split(line, ",")
-			if len(parts) < 2 {
-				continue
-			}
-			line = strings.TrimSpace(parts[1])
+			line, _, _ = strings.Cut(line, "#")
+			line, _, _ = strings.Cut(line, "//")
+			line, _, _ = strings.Cut(line, "/*")
+			_, line, _ = strings.Cut(line, ",")
+			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
 			}
@@ -188,58 +149,6 @@ func (t *TextIn) scanFileForSurgeRuleSetIn(reader io.Reader, entry *lib.Entry) e
 	}
 	if err := scanner.Err(); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func (t *TextIn) scanFileForJSONIn(reader io.Reader, entry *lib.Entry) error {
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return err
-	}
-
-	if !gjson.ValidBytes(data) {
-		return fmt.Errorf("❌ [type %s | action %s] invalid JSON data", t.Type, t.Action)
-	}
-
-	// JSON Path syntax:
-	// https://github.com/tidwall/gjson/blob/master/SYNTAX.md
-	for _, path := range t.JSONPath {
-		path = strings.TrimSpace(path)
-
-		result := gjson.GetBytes(data, path)
-		if err := t.processJSONResult(result, entry); err != nil {
-			return fmt.Errorf("❌ [type %s | action %s] failed to process JSON: %v", t.Type, t.Action, err)
-		}
-	}
-
-	return nil
-}
-
-func (t *TextIn) processJSONResult(result gjson.Result, entry *lib.Entry) error {
-	switch {
-	case !result.Exists():
-		return fmt.Errorf("invaild IP address or CIDR (value not exist), please check your specified JSON path or JSON source")
-
-	case result.Type == gjson.String:
-		cidr := strings.TrimSpace(result.String())
-		if cidr == "" {
-			return fmt.Errorf("empty string, please check your specified JSON path or JSON source")
-		}
-		if err := entry.AddPrefix(cidr); err != nil {
-			return err
-		}
-
-	case result.IsArray():
-		for _, item := range result.Array() {
-			if err := t.processJSONResult(item, entry); err != nil {
-				return err
-			}
-		}
-
-	default:
-		return fmt.Errorf("invaild IP address or CIDR, please check your specified JSON path or JSON source")
 	}
 
 	return nil

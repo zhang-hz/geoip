@@ -12,15 +12,15 @@ which make it possible to support more formats for the project.
 */
 
 const (
-	TypeSurgeRuleSetOut = "surgeRuleSet"
-	DescSurgeRuleSetOut = "Convert data to Surge RuleSet"
+	typeSurgeRuleSetOut = "surgeRuleSet"
+	descSurgeRuleSetOut = "Convert data to Surge RuleSet"
 )
 
 func init() {
-	lib.RegisterOutputConfigCreator(TypeSurgeRuleSetOut, func(action lib.Action, data json.RawMessage) (lib.OutputConverter, error) {
-		return newTextOut(TypeSurgeRuleSetOut, DescSurgeRuleSetOut, action, data)
+	lib.RegisterOutputConfigCreator(typeSurgeRuleSetOut, func(action lib.Action, data json.RawMessage) (lib.OutputConverter, error) {
+		return newTextOut(typeSurgeRuleSetOut, action, data)
 	})
-	lib.RegisterOutputConverter(TypeSurgeRuleSetOut, &TextOut{
-		Description: DescSurgeRuleSetOut,
+	lib.RegisterOutputConverter(typeSurgeRuleSetOut, &textOut{
+		Description: descSurgeRuleSetOut,
 	})
 }
