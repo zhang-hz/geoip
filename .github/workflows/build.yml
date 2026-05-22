@@ -61,6 +61,11 @@ jobs:
           cp GeoLite2-Country-CSV_*/*.csv ./geolite2/
           cp GeoLite2-ASN-CSV_*/*.csv ./geolite2/
 
+      - name: Append datacenter
+        run: |
+          chmod +x datacenter.sh
+          ./datacenter.sh
+
       - name: Build geoip files
         run: |
           go build ./
@@ -93,7 +98,7 @@ jobs:
           cd output || exit 1
           git init
           git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.email "9509763+github-actions[bot]@users.noreply.github.com"
           git checkout -b release
           git add -A
           git commit -m "${{ env.RELEASE_NAME }}"
